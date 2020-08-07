@@ -2,7 +2,6 @@ extends Node
 # Slack client as a node
 
 # Network clients
-onready var _http_request: HTTPRequest = HTTPRequest.new()
 onready var _websocket_client: WebSocketClient =  WebSocketClient.new() 
 
 onready var _token = OS.get_environment("SLACK_TOKEN")
@@ -20,30 +19,17 @@ var _state = {
 }
 
 # Global broadcast when any state change
-signal state_changed(new_state)
+# Make sure to include both states
+signal state_changed(old_state, new_state)
 
-# Useful, not in the standard lib
-static func merge_dict(target, patch):
-	for key in patch:
-		if target.has(key):
-			var tv = target[key]
-			if typeof(tv) == TYPE_DICTIONARY:
-				merge_dict(tv, patch[key])
-			else:
-				target[key] = patch[key]
-		else:
-			target[key] = patch[key]
-
-static func _key_by_id(some_list):
-	var r = {}
-	for i in some_list:
-		r[i.id] = i
-	return r
-	
 # All state updates should go through here, so changes get broacast
 func _patch_state(patch): 
-	merge_dict(self._state, patch)
-	self.emit_signal("state_changed", self._state)
+	var old_state = _state
+	var new_state = {}
+	md(new_state, old_state)
+	md(new_state, patch)
+	self._state= new_state
+	self.emit_signal("state_changed", old_state, new_state)
 
 # Public functions to patch specific bits of the state that
 # are modifiable from the UI!
@@ -54,6 +40,7 @@ func select_conversation(conversation_id: String):
 func _ready():
 	OS
 	self.connect("state_changed", self, "_state_changed")
+	var _http_request = HTTPRequest.new()
 	add_child(_http_request)
 	_http_request.connect("request_completed", self, "_boot_complete")
 	var error = _http_request.request("https://slack.com/api/rtm.start?token=" + _token)
@@ -69,8 +56,10 @@ func _boot_complete(result, response_code, headers, body):
 
 	# Transform the boot response a bit, key users and channels by their ID
 	# So we can patch them effectively later from RTMs received
-	response_json.channels = _key_by_id(response_json.channels)
-	response_json.users = _key_by_id(response_json.users)
+	response_json.channels = ki(response_json.channels)
+	response_json.users = ki(response_json.users)
+	response_json.groups = ki(response_json.groups)
+	response_json.ims = ki(response_json.ims)
 	# Just bung the entire boot response into the state
 	self._patch_state(response_json)
 	
@@ -82,7 +71,27 @@ func _boot_complete(result, response_code, headers, body):
 	var err = _websocket_client.connect_to_url(response_json.url)
 	if err != OK:
 		push_error("Failed to connect to websocket " + response_json.url)
-		
+	
+	# Fetch stars
+	_http_request.connect("request_completed", self, "_stars_completed")
+	err = _http_request.request("https://slack.com/api/stars.list?token=" + _token)
+	if err != OK:
+		push_error("Failed to fetch stars")
+	
+func _stars_completed(result, response_code,  headers, body):
+	if response_code != HTTPClient.RESPONSE_OK:
+		push_error("Error authenticating with slack!")
+		return
+	var response_json = parse_json(body.get_string_from_utf8())
+	for i in response_json.items:
+		match i.type:
+			"channel": 
+				var cid: String = i.channel
+				print("Found channel " + cid + " was starred")
+				self._patch_state({"channels":{cid: {"starred": true}}})
+			_: 
+				pass
+
 func _ws_closed():
 	push_error("_ws_closed")
 	
@@ -101,12 +110,11 @@ func _ws_data():
 func _process(delta):
 	_websocket_client.poll()
 
-var window_title_set = false
-
-func _state_changed(new_state):
-	if !window_title_set:
+func _state_changed(old_state, new_state):
+	var old_team_name = fd(old_state, ["team", "name"])
+	var new_team_name = fd(new_state, ["team", "name"])
+	if old_team_name != new_team_name:
 		OS.set_window_title("Slack: " + new_state.team.name)
-		window_title_set = true
 		
 	# Fetch conversation history if we need to
 	var c = new_state.get("selected_conversation")
@@ -130,3 +138,33 @@ func _conversation_history_completed(result, response_code, headers, body):
 			c: response_json.messages
 		}
 	})	
+
+# Merge dictionaries
+static func md(target, patch):
+	for key in patch:
+		if target.has(key):
+			var tv = target[key]
+			if typeof(tv) == TYPE_DICTIONARY:
+				md(tv, patch[key])
+			else:
+				target[key] = patch[key]
+		else:
+			target[key] = patch[key]
+
+# Turn an array into a dict, keyed by .id member
+static func ki(some_list):
+	var r = {}
+	for i in some_list:
+		r[i.id] = i
+	return r
+	
+# Finds an object at a path in a nested dict
+# Can return null
+static func fd(obj, path: Array):
+	while true:
+		if len(path) == 0:
+			return obj
+		if obj == null:
+			return null
+		var key = path.pop_front()
+		obj = obj.get(key)

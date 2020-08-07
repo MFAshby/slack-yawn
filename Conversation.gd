@@ -1,29 +1,48 @@
 extends ItemList
 
+var userRegex = RegEx.new()
+
 # Called when the node enters the scene tree for the first time.
 func _ready():
 	Slack.connect("state_changed", self, "_state_changed")
+	userRegex.compile("<@([a-zA-Z0-9]{9})>")
 	
 class TimestampSorter:
 	static func sort_by_ts_desc(a, b):
 		return a["ts"] < b["ts"]
 		
-func _state_changed(new_state):
+func _state_changed(old_state, new_state):
 	self.clear()
-	var c = new_state["selected_conversation"]
-	if c != null:
-		var f = new_state["fetching_conversation"]
-		if f == c:
+	var nc = Slack.fd(new_state, ["selected_conversation"])
+	if nc == null:
+		self.add_item("No conversation selected!")
+	else:
+		var messages = Slack.fd(new_state, ["messages", nc])
+		if messages == null:
 			self.add_item("Loading...")
 		else:
-			var messages: Array = new_state.messages[c]
 			messages.sort_custom(TimestampSorter, "sort_by_ts_desc")
 			for i in len(messages):
-				var msg = messages[i]
-				self.add_item(msg.text)
-	var scrollbar = self.get_v_scroll()
-	scrollbar.value = scrollbar.min_value
+				self._add_message(i, messages[i], new_state)
+		var scrollbar = self.get_v_scroll()
+		scrollbar.value = scrollbar.min_value
 
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta):
-	pass
+func _add_message(i, msg, state):
+	# Start with just the message text
+	var txt: String = msg.text
+	
+	# Parse the message for user IDs and 
+	# replace with usernames 
+	var um = userRegex.search_all(txt)
+	for m in um:
+		var repl = m.get_string()
+		var userId = m.get_string(1)
+		var userName = Slack.fd(state, ["users", userId, "name"])
+		txt = txt.replacen(repl, "@" + userName)
+		
+	# Prepend the sender's name
+	var senderName = Slack.fd(state, ["users", msg.user, "name"])
+	txt = senderName + ": " + txt
+	
+	self.add_item(txt)
+	self.set_item_metadata(i, msg)

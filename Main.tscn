@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=2]
 
-[ext_resource path="res://ChannelsList.gd" type="Script" id=2]
+[ext_resource path="res://ConversationsTree.gd" type="Script" id=2]
 [ext_resource path="res://Conversation.gd" type="Script" id=3]
 
 [node name="Root" type="MarginContainer"]
@@ -21,25 +21,24 @@ margin_right = 1022.0
 margin_bottom = 598.0
 split_offset = 200
 
-[node name="ChannelsList" type="ItemList" parent="HBoxContainer"]
-margin_right = 200.0
+[node name="ConversationsTree" type="Tree" parent="HBoxContainer"]
+margin_right = 201.0
 margin_bottom = 596.0
-items = [ "General", null, false, "Noise", null, false, "Random", null, false ]
 script = ExtResource( 2 )
 
 [node name="VBoxContainer" type="VSplitContainer" parent="HBoxContainer"]
-margin_left = 212.0
+margin_left = 213.0
 margin_right = 1020.0
 margin_bottom = 596.0
 split_offset = 500
 
 [node name="Conversation" type="ItemList" parent="HBoxContainer/VBoxContainer"]
-margin_right = 808.0
+margin_right = 807.0
 margin_bottom = 500.0
 script = ExtResource( 3 )
 
 [node name="Editor" type="TextEdit" parent="HBoxContainer/VBoxContainer"]
 margin_top = 512.0
-margin_right = 808.0
+margin_right = 807.0
 margin_bottom = 596.0
 text = "hey there this is some text"
