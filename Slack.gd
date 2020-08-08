@@ -1,10 +1,15 @@
 extends Node
 # Slack client as a node
 
+# Pull the token from the environment
+# Should probably implement the v1 oauth flow for normal login
+onready var _token = OS.get_environment("SLACK_TOKEN")
+
 # Network clients
 onready var _websocket_client: WebSocketClient =  WebSocketClient.new() 
-
-onready var _token = OS.get_environment("SLACK_TOKEN")
+onready var _boot_http_req = HTTPRequest.new()
+onready var _stars_http_req = HTTPRequest.new()
+onready var _conversation_http_req = HTTPRequest.new()
 
 # Application state
 var _state = {
@@ -15,7 +20,13 @@ var _state = {
 	"fetching_conversation": null,
 	
 	# Data state 
-	"messages": {} # Keyed by conversation
+	# Keyed by conversation
+	"messages": {},
+	
+	# Keyed by conversation, 
+	# special member "is_channel_starred" boolean value 
+	# indicating if the entire channel was starred
+	"stars": {}
 }
 
 # Global broadcast when any state change
@@ -38,17 +49,25 @@ func select_conversation(conversation_id: String):
 
 # gogogo
 func _ready():
-	OS
 	self.connect("state_changed", self, "_state_changed")
-	var _http_request = HTTPRequest.new()
-	add_child(_http_request)
-	_http_request.connect("request_completed", self, "_boot_complete")
-	var error = _http_request.request("https://slack.com/api/rtm.start?token=" + _token)
+
+	# Fetch boot info	
+	add_child(_boot_http_req)
+	_boot_http_req.connect("request_completed", self, "_boot_complete")
+	var error = _boot_http_req.request("https://slack.com/api/rtm.start?token=" + _token)
 	if error != OK:
 		push_error("An error occurred on boot")
+		
+	# Fetch stars
+	add_child(_stars_http_req)
+	_stars_http_req.connect("request_completed", self, "_stars_completed")
+	var err = _stars_http_req.request("https://slack.com/api/stars.list?token=" + _token)
+	if err != OK:
+		push_error("Failed to fetch stars")
 
 func _boot_complete(result, response_code, headers, body):
-	_http_request.disconnect("request_completed", self, "_boot_complete")
+	_boot_http_req.disconnect("request_completed", self, "_boot_complete")
+	self.remove_child(_boot_http_req)
 	var response_json = parse_json(body.get_string_from_utf8())
 	if response_code != HTTPClient.RESPONSE_OK:
 		push_error("Error authenticating with slack!")
@@ -60,6 +79,7 @@ func _boot_complete(result, response_code, headers, body):
 	response_json.users = ki(response_json.users)
 	response_json.groups = ki(response_json.groups)
 	response_json.ims = ki(response_json.ims)
+	
 	# Just bung the entire boot response into the state
 	self._patch_state(response_json)
 	
@@ -72,26 +92,28 @@ func _boot_complete(result, response_code, headers, body):
 	if err != OK:
 		push_error("Failed to connect to websocket " + response_json.url)
 	
-	# Fetch stars
-	_http_request.connect("request_completed", self, "_stars_completed")
-	err = _http_request.request("https://slack.com/api/stars.list?token=" + _token)
-	if err != OK:
-		push_error("Failed to fetch stars")
-	
 func _stars_completed(result, response_code,  headers, body):
+	_stars_http_req.disconnect("request_completed", self, "_stars_completed")
+	self.remove_child(_stars_http_req)
 	if response_code != HTTPClient.RESPONSE_OK:
-		push_error("Error authenticating with slack!")
+		push_error("Error fetching stars!")
 		return
+
+	# Turn the heterogenoous list to a useful lookup
+	var stars = {}
 	var response_json = parse_json(body.get_string_from_utf8())
 	for i in response_json.items:
 		match i.type:
+			"im": continue
 			"channel": 
 				var cid: String = i.channel
-				print("Found channel " + cid + " was starred")
-				self._patch_state({"channels":{cid: {"starred": true}}})
+				md(stars, {cid: {"is_channel_starred": true}})
+			"group":
+				var cid: String = i.group
+				md(stars, {cid: {"is_channel_starred": true}})
 			_: 
 				pass
-
+	self._patch_state({"stars": stars})
 func _ws_closed():
 	push_error("_ws_closed")
 	
@@ -123,13 +145,15 @@ func _state_changed(old_state, new_state):
 			if self._state.get("fetching_conversation") == null:
 				self._patch_state({"fetching_conversation": c})
 			else:
-				self._http_request.connect("request_completed",self, "_conversation_history_completed")
-				var err = self._http_request.request("https://slack.com/api/conversations.history?token=" + _token + "&channel=" + c)
+				self.add_child(_conversation_http_req)
+				self._conversation_http_req.connect("request_completed",self, "_conversation_history_completed")
+				var err = self._conversation_http_req.request("https://slack.com/api/conversations.history?token=" + _token + "&channel=" + c)
 				if err != OK:
 					push_error("An error occurred fetching conversation history! " + err)
 
 func _conversation_history_completed(result, response_code, headers, body):
-	self._http_request.disconnect("request_completed",self, "_conversation_history_completed")
+	self._conversation_http_req.disconnect("request_completed",self, "_conversation_history_completed")
+	self.remove_child(_conversation_http_req)
 	var response_json = parse_json(body.get_string_from_utf8())
 	var c = self._state.fetching_conversation
 	self._patch_state({
@@ -151,12 +175,16 @@ static func md(target, patch):
 		else:
 			target[key] = patch[key]
 
-# Turn an array into a dict, keyed by .id member
-static func ki(some_list):
+# Transform a list to a dict with a key
+static func k(lst, key):
 	var r = {}
-	for i in some_list:
-		r[i.id] = i
+	for i in lst:
+		r[i[key]] = i
 	return r
+
+# Transform a list to a dict, using id as a key
+static func ki(lst):
+	return k(lst, "id")
 	
 # Finds an object at a path in a nested dict
 # Can return null

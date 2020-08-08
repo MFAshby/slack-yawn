@@ -4,14 +4,15 @@ extends Tree
 func _ready():
 	self.connect("item_selected", self, "_item_selected")
 	Slack.connect("state_changed", self, "_state_changed")	
-	
-	
 
 func _state_changed(old_state, new_state):
 	# https://github.com/godotengine/godot/issues/16174
 	self.call_deferred("_rebuild_tree", old_state, new_state)
 	
 func _rebuild_tree(old_state, new_state):
+	if Slack.fd(old_state, ["channels"]) == Slack.fd(new_state,  ["channels"]):
+		return
+	
 	var oldRoot = self.get_root()
 	if oldRoot != null:
 		oldRoot.call_recursive("free")
@@ -32,7 +33,7 @@ func _rebuild_tree(old_state, new_state):
 	# IMs  / Groups, 
 	var channels = new_state.channels.values()
 	for c in channels:	
-		if c.get("starred"):
+		if _is_starred(c.id, new_state):
 			var i = self.create_item(starred)
 			i.set_text(0, c.name)
 			i.set_metadata(0, c)
@@ -51,7 +52,12 @@ func _rebuild_tree(old_state, new_state):
 		i.set_text(0, username)
 		i.set_metadata(0, m)
 
+func _is_starred(cid, state):
+	return Slack.fd(state, ["stars", cid, "is_channel_starred"])
+
 func _item_selected():
 	var i = self.get_selected()
 	var m = i.get_metadata(0)
-	Slack.select_conversation(m.id)
+	# Root nodes have no metadata
+	if m != null:
+		Slack.select_conversation(m.id)
