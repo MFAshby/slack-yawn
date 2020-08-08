@@ -25,6 +25,12 @@ func _state_changed(old_state, new_state):
 			messages.sort_custom(TimestampSorter, "sort_by_ts_desc")
 			for i in len(messages):
 				self._add_message(i, messages[i], new_state)
+		var pms = new_state.pending_messages.values()
+		for i in len(pms):
+			var pm = pms[i]
+			if pm != null:
+				if pm.channel == nc:
+					self._add_message(i, pm, new_state)
 		var scrollbar = self.get_v_scroll()
 		scrollbar.value = scrollbar.min_value
 
@@ -42,8 +48,11 @@ func _add_message(i, msg, state):
 		txt = txt.replacen(repl, "@" + userName)
 		
 	# Prepend the sender's name
-	var senderName = Slack.fd(state, ["users", msg.user, "name"])
-	txt = senderName + ": " + txt
+	if msg.has("user"):
+		var senderName = Slack.fd(state, ["users", msg.user, "name"])
+		txt = senderName + ": " + txt
 	
 	self.add_item(txt)
 	self.set_item_metadata(i, msg)
+	if not msg.has("ts"):
+		self.set_item_custom_fg_color(i,Color(1, 0, 0, 1) )

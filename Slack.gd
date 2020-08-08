@@ -26,7 +26,10 @@ var _state = {
 	# Keyed by conversation, 
 	# special member "is_channel_starred" boolean value 
 	# indicating if the entire channel was starred
-	"stars": {}
+	"stars": {},
+	
+	# Pending messages, keyed by our assigned id
+	"pending_messages": {}
 }
 
 # Global broadcast when any state change
@@ -46,6 +49,28 @@ func _patch_state(patch):
 # are modifiable from the UI!
 func select_conversation(conversation_id: String):
 	self._patch_state({"selected_conversation": conversation_id})
+	
+# As per slack docs,you need an incrementing message
+var _next_message_id = 1 
+func send_message(text, cid = null):
+	if cid == null:
+		cid = self._state["selected_conversation"]
+	if cid == null:
+		print("No conversation")
+		return
+	var i = self._next_message_id
+	self._next_message_id = i+1
+	var pm = {
+		"id": i,
+		"type": "message",
+		"channel": cid, 
+		"text": text
+	}
+	var err = _websocket_client.get_peer(1).put_packet(to_json(pm).to_utf8())
+	if err != OK:
+		push_error("Failed to send message!")
+	# Bug,can't use integer keys :S
+	self._patch_state({"pending_messages": {str(i): pm}})
 
 # gogogo
 func _ready():
@@ -122,6 +147,22 @@ func _ws_error():
 	
 func _ws_data():
 	var payload = parse_json(_websocket_client.get_peer(1).get_packet().get_string_from_utf8())
+
+	if payload.has("reply_to") and payload.has("ok"):
+		if payload.ok:
+			# Upgrade pending message to a real one
+			var pm = self._state.pending_messages[str(payload.reply_to)]
+			#var pm = fd(self._state, ["pending_messages", payload.reply_to])
+			var nm = {}
+			md(nm, pm)
+			md(nm, payload)
+			self._patch_state({
+				"pending_messages": {payload.reply_to: null},
+				"messages": {nm.channel: {nm.ts: nm}}
+			})
+		else:
+			push_error("Message failed for some reason?!?")
+		return
 	match payload.type:
 		"hello":
 			print("hello to you too, slack")

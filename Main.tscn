@@ -1,5 +1,6 @@
-[gd_scene load_steps=3 format=2]
+[gd_scene load_steps=4 format=2]
 
+[ext_resource path="res://Editor.gd" type="Script" id=1]
 [ext_resource path="res://ConversationsTree.gd" type="Script" id=2]
 [ext_resource path="res://Conversation.gd" type="Script" id=3]
 
@@ -37,8 +38,9 @@ margin_right = 807.0
 margin_bottom = 500.0
 script = ExtResource( 3 )
 
-[node name="Editor" type="TextEdit" parent="HBoxContainer/VBoxContainer"]
+[node name="Editor" type="LineEdit" parent="HBoxContainer/VBoxContainer"]
 margin_top = 512.0
 margin_right = 807.0
 margin_bottom = 596.0
 text = "hey there this is some text"
+script = ExtResource( 1 )
