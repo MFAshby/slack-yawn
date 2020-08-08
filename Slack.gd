@@ -20,7 +20,7 @@ var _state = {
 	"fetching_conversation": null,
 	
 	# Data state 
-	# Keyed by conversation
+	# Keyed by conversation, then by ts
 	"messages": {},
 	
 	# Keyed by conversation, 
@@ -126,6 +126,9 @@ func _ws_data():
 		"hello":
 			print("hello to you too, slack")
 		# take the data, patch the state...
+		"message":
+			print("Received message", payload)
+			self._patch_state({"messages": {payload.channel: {payload.ts: payload}}})
 		_: 
 			print("message received but not handled ", payload)
 
@@ -159,7 +162,9 @@ func _conversation_history_completed(result, response_code, headers, body):
 	self._patch_state({
 		"fetching_conversation": null,
 		"messages": {
-			c: response_json.messages
+			# ts is basically the key for a message
+			# and also the sort order
+			c: k(response_json.messages, "ts")
 		}
 	})	
 

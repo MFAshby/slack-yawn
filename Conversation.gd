@@ -21,6 +21,7 @@ func _state_changed(old_state, new_state):
 		if messages == null:
 			self.add_item("Loading...")
 		else:
+			messages = messages.values()
 			messages.sort_custom(TimestampSorter, "sort_by_ts_desc")
 			for i in len(messages):
 				self._add_message(i, messages[i], new_state)
