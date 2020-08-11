@@ -17,6 +17,7 @@ func _state_changed(old_state, new_state):
 	if nc == null:
 		self.add_item("No conversation selected!")
 	else:
+		var idx = 0
 		var messages = Slack.fd(new_state, ["messages", nc])
 		if messages == null:
 			self.add_item("Loading...")
@@ -24,19 +25,27 @@ func _state_changed(old_state, new_state):
 			messages = messages.values()
 			messages.sort_custom(TimestampSorter, "sort_by_ts_desc")
 			for i in len(messages):
-				self._add_message(i, messages[i], new_state)
+				self._add_message(idx, messages[i], new_state)
+				idx = idx +1
 		var pms = new_state.pending_messages.values()
 		for i in len(pms):
 			var pm = pms[i]
 			if pm != null:
 				if pm.channel == nc:
-					self._add_message(i, pm, new_state)
+					self._add_message(idx, pm, new_state)
+					self.set_item_custom_fg_color(idx,Color(1, 0, 0, 1) )
+					idx = idx + 1
 		var scrollbar = self.get_v_scroll()
-		scrollbar.value = scrollbar.min_value
+		scrollbar.value = scrollbar.max_value
 
 func _add_message(i, msg, state):
 	# Start with just the message text
 	var txt: String = msg.text
+	
+	# Prepend the sender's name
+	if msg.has("user"):
+		var senderName = Slack.fd(state, ["users", msg.user, "name"])
+		txt = senderName + ": " + txt
 	
 	# Parse the message for user IDs and 
 	# replace with usernames 
@@ -46,13 +55,6 @@ func _add_message(i, msg, state):
 		var userId = m.get_string(1)
 		var userName = Slack.fd(state, ["users", userId, "name"])
 		txt = txt.replacen(repl, "@" + userName)
-		
-	# Prepend the sender's name
-	if msg.has("user"):
-		var senderName = Slack.fd(state, ["users", msg.user, "name"])
-		txt = senderName + ": " + txt
 	
 	self.add_item(txt)
 	self.set_item_metadata(i, msg)
-	if not msg.has("ts"):
-		self.set_item_custom_fg_color(i,Color(1, 0, 0, 1) )

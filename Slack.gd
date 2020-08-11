@@ -44,19 +44,29 @@ func _patch_state(patch):
 	md(new_state, patch)
 	self._state= new_state
 	self.emit_signal("state_changed", old_state, new_state)
+	
+# The only other function for modifying state, allow deleting state
+func _del_state(path: Array):
+	var old_state = _state
+	var new_state = {}
+	md(new_state, old_state)
+	dp(new_state, path)
+	self._state= new_state
+	self.emit_signal("state_changed", old_state, new_state)
 
 # Public functions to patch specific bits of the state that
 # are modifiable from the UI!
 func select_conversation(conversation_id: String):
 	self._patch_state({"selected_conversation": conversation_id})
 	
-# As per slack docs,you need an incrementing message
+# As per slack docs,you need an incrementing message counter
+# for each message you send via the RTM API
 var _next_message_id = 1 
 func send_message(text, cid = null):
 	if cid == null:
 		cid = self._state["selected_conversation"]
 	if cid == null:
-		print("No conversation")
+		push_error("Sending a message, but no conversation selected")
 		return
 	var i = self._next_message_id
 	self._next_message_id = i+1
@@ -64,7 +74,8 @@ func send_message(text, cid = null):
 		"id": i,
 		"type": "message",
 		"channel": cid, 
-		"text": text
+		"text": text,
+		"user": fd(self._state, ["self", "id"])
 	}
 	var err = _websocket_client.get_peer(1).put_packet(to_json(pm).to_utf8())
 	if err != OK:
@@ -152,13 +163,12 @@ func _ws_data():
 		if payload.ok:
 			# Upgrade pending message to a real one
 			var pm = self._state.pending_messages[str(payload.reply_to)]
-			#var pm = fd(self._state, ["pending_messages", payload.reply_to])
 			var nm = {}
 			md(nm, pm)
 			md(nm, payload)
+			self._del_state(["pending_messages", str(payload.reply_to)])
 			self._patch_state({
-				"pending_messages": {payload.reply_to: null},
-				"messages": {nm.channel: {nm.ts: nm}}
+				"messages": {nm.channel: {str(nm.ts): nm}}
 			})
 		else:
 			push_error("Message failed for some reason?!?")
@@ -193,11 +203,14 @@ func _state_changed(old_state, new_state):
 				self._conversation_http_req.connect("request_completed",self, "_conversation_history_completed")
 				var err = self._conversation_http_req.request("https://slack.com/api/conversations.history?token=" + _token + "&channel=" + c)
 				if err != OK:
-					push_error("An error occurred fetching conversation history! " + err)
+					push_error("An error occurred fetching conversation history! ")
 
 func _conversation_history_completed(result, response_code, headers, body):
 	self._conversation_http_req.disconnect("request_completed",self, "_conversation_history_completed")
 	self.remove_child(_conversation_http_req)
+	if response_code != HTTPClient.RESPONSE_OK:
+		push_error("Failed to fetch conversation!")
+		return
 	var response_json = parse_json(body.get_string_from_utf8())
 	var c = self._state.fetching_conversation
 	self._patch_state({
@@ -205,12 +218,12 @@ func _conversation_history_completed(result, response_code, headers, body):
 		"messages": {
 			# ts is basically the key for a message
 			# and also the sort order
-			c: k(response_json.messages, "ts")
+			c: ks(response_json.messages, "ts")
 		}
 	})	
 
 # Merge dictionaries
-static func md(target, patch):
+static func md(target: Dictionary, patch):
 	for key in patch:
 		if target.has(key):
 			var tv = target[key]
@@ -220,6 +233,25 @@ static func md(target, patch):
 				target[key] = patch[key]
 		else:
 			target[key] = patch[key]
+
+# Deletes an object at the specified path in the nested dictionary
+# Returns true if it deleted something, false otherwise.
+static func dp(target: Dictionary, path: Array):
+	while true:
+		if target == null:
+			return null
+		elif len(path) == 1:
+			return target.erase(path[0])
+		else:
+			var key = path.pop_front()
+			target = target.get(key)
+
+# Transform a list to a dict with a key, transforming the key toa string first. 
+static func ks(lst, key):
+	var r = {}
+	for i in lst:
+		r[i[str(key)]] = i
+	return r
 
 # Transform a list to a dict with a key
 static func k(lst, key):
