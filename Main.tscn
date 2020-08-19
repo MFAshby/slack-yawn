@@ -1,9 +1,10 @@
-[gd_scene load_steps=5 format=2]
+[gd_scene load_steps=6 format=2]
 
 [ext_resource path="res://Editor.gd" type="Script" id=1]
 [ext_resource path="res://ConversationsTree.gd" type="Script" id=2]
 [ext_resource path="res://Conversation.gd" type="Script" id=3]
 [ext_resource path="res://StateTree.gd" type="Script" id=4]
+[ext_resource path="res://ConversationSearchPopup.gd" type="Script" id=5]
 
 [node name="Root" type="MarginContainer"]
 anchor_right = 1.0
@@ -63,3 +64,24 @@ margin_right = -4.0
 margin_bottom = -4.0
 columns = 2
 script = ExtResource( 4 )
+
+[node name="ConversationSearchPopup" type="PopupPanel" parent="."]
+margin_left = 2.0
+margin_top = 2.0
+margin_right = 1022.0
+margin_bottom = 598.0
+script = ExtResource( 5 )
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ConversationSearchPopup"]
+margin_right = 40.0
+margin_bottom = 40.0
+
+[node name="LineEdit" type="LineEdit" parent="ConversationSearchPopup/VBoxContainer"]
+margin_right = 58.0
+margin_bottom = 24.0
+
+[node name="SearchResultsList" type="ItemList" parent="ConversationSearchPopup/VBoxContainer"]
+margin_top = 28.0
+margin_right = 58.0
+margin_bottom = 40.0
+size_flags_vertical = 3

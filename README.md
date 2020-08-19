@@ -12,9 +12,9 @@ Features:
 Not much, you can read channels IMs and respond.
 
 TODO:
+* Keyboard controls, mostly ctrl+k to select a conversation. - this is actually really useful for testing, do this next DONE
 * Clean up Slack.gd a bit. There's a lot of nesting, there's a lot of ugliness that should be pulled out into functions. Do it.
 * Fixup the layout. Text box height should be fixed probably, or wrap to the message content. App should scale ok on various screens
-* Keyboard controls, mostly ctrl+k to select a conversation.
 * Emoji
 * @people
 * Groups
