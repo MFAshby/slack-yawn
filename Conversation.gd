@@ -21,18 +21,22 @@ func _state_changed(old_state, new_state):
 		if messages == null:
 			self.add_item("Loading...")
 		else:
+			var ix = 0
 			messages = messages.values()
 			messages.sort_custom(TimestampSorter, "sort_by_ts_desc")
 			for i in len(messages):
-				self._add_message(i, messages[i], new_state)
-		var pms = new_state.pending_messages.values()
-		for i in len(pms):
-			var pm = pms[i]
-			if pm != null:
-				if pm.channel == nc:
-					self._add_message(i, pm, new_state)
-		var scrollbar = self.get_v_scroll()
-		scrollbar.value = scrollbar.min_value
+				self._add_message(ix, messages[i], new_state)
+				ix += 1
+			var pms = new_state.pending_messages.values()
+			for i in len(pms):
+				var pm = pms[i]
+				if pm != null:
+					if pm.channel == nc:
+						self._add_message(ix, pm, new_state)
+						ix += 1
+			self.select(ix-1)
+			self.ensure_current_is_visible()
+			self.unselect_all()
 
 func _add_message(i, msg, state):
 	# Start with just the message text

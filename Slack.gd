@@ -98,6 +98,11 @@ func _boot_complete(result, response_code, headers, body):
 		push_error("Error authenticating with slack!")
 		return
 
+	var err = response_json.get("error")
+	if err != null:
+		push_error(err)
+		return
+
 	# Transform the boot response a bit, key users and channels by their ID
 	# So we can patch them effectively later from RTMs received
 	response_json.channels = ki(response_json.channels)
@@ -113,7 +118,7 @@ func _boot_complete(result, response_code, headers, body):
 	_websocket_client.connect("connection_error", self, "_ws_error")
 	_websocket_client.connect("data_received", self, "_ws_data")
 	print("Connecting to websocket at " + response_json.url)
-	var err = _websocket_client.connect_to_url(response_json.url)
+	err = _websocket_client.connect_to_url(response_json.url)
 	if err != OK:
 		push_error("Failed to connect to websocket " + response_json.url)
 	
@@ -124,9 +129,14 @@ func _stars_completed(result, response_code,  headers, body):
 		push_error("Error fetching stars!")
 		return
 
+	var response_json = parse_json(body.get_string_from_utf8())
+	var err = response_json.get("error")
+	if err != null:
+		push_error(err)
+		return
+		
 	# Turn the heterogenoous list to a useful lookup
 	var stars = {}
-	var response_json = parse_json(body.get_string_from_utf8())
 	for i in response_json.items:
 		match i.type:
 			"im": continue

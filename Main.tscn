@@ -42,5 +42,6 @@ script = ExtResource( 3 )
 margin_top = 512.0
 margin_right = 807.0
 margin_bottom = 596.0
+size_flags_horizontal = 3
 text = "hey there this is some text"
 script = ExtResource( 1 )
