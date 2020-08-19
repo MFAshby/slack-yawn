@@ -1,12 +1,14 @@
-extends LineEdit
+extends TextEdit
 
 # OMG swap out the boring editor with this
 # https://ash-k.itch.io/textreme-2
 # pleeeease :) 
 
-func _ready():
-	self.connect("text_entered", self, "_text_entered")
-
-func _text_entered(new_text):
-	Slack.send_message(new_text)
-	self.clear()
+func _gui_input(event):
+	# Ctrl modifier prevents the message being sent, 
+	# Allowing multi-line entry
+	if Input.is_action_pressed("ui_accept") and not event.get("control"):
+		Slack.send_message(self.text)
+		self.text = ""
+		self.accept_event()
+	

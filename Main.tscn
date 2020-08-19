@@ -47,7 +47,7 @@ margin_right = 799.0
 margin_bottom = 500.0
 script = ExtResource( 3 )
 
-[node name="Editor" type="LineEdit" parent="TabContainer/HSplitContainer/VSplitContainer"]
+[node name="Editor" type="TextEdit" parent="TabContainer/HSplitContainer/VSplitContainer"]
 margin_top = 512.0
 margin_right = 799.0
 margin_bottom = 560.0
