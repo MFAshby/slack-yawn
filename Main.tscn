@@ -25,8 +25,10 @@ margin_bottom = 598.0
 [node name="HSplitContainer" type="HSplitContainer" parent="TabContainer"]
 anchor_right = 1.0
 anchor_bottom = 1.0
-margin_right = -8.0
-margin_bottom = -36.0
+margin_left = 4.0
+margin_top = 32.0
+margin_right = -4.0
+margin_bottom = -4.0
 split_offset = 200
 
 [node name="ConversationsTree" type="Tree" parent="TabContainer/HSplitContainer"]
@@ -57,7 +59,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 margin_left = 4.0
 margin_top = 32.0
-margin_right = -976.0
-margin_bottom = -524.0
+margin_right = -4.0
+margin_bottom = -4.0
 columns = 2
 script = ExtResource( 4 )

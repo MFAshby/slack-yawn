@@ -162,13 +162,13 @@ func _ws_data():
 	if payload.has("reply_to") and payload.has("ok"):
 		if payload.ok:
 			# Upgrade pending message to a real one
-			var pm = self._state.pending_messages[str(payload.reply_to)]
+			var pm = self.fd(self._state, ["pending_messages", str(payload.reply_to)])
 			var nm = {}
 			md(nm, pm)
 			md(nm, payload)
 			self._del_state(["pending_messages", str(payload.reply_to)])
 			self._patch_state({
-				"messages": {nm.channel: {str(nm.ts): nm}}
+				"messages": {nm.channel: {nm.ts: nm}}
 			})
 		else:
 			push_error("Message failed for some reason?!?")
@@ -218,7 +218,7 @@ func _conversation_history_completed(result, response_code, headers, body):
 		"messages": {
 			# ts is basically the key for a message
 			# and also the sort order
-			c: ks(response_json.messages, "ts")
+			c: k(response_json.messages, "ts")
 		}
 	})	
 
@@ -245,13 +245,6 @@ static func dp(target: Dictionary, path: Array):
 		else:
 			var key = path.pop_front()
 			target = target.get(key)
-
-# Transform a list to a dict with a key, transforming the key toa string first. 
-static func ks(lst, key):
-	var r = {}
-	for i in lst:
-		r[i[str(key)]] = i
-	return r
 
 # Transform a list to a dict with a key
 static func k(lst, key):
